@@ -1,332 +1,195 @@
-# 数据备份软件
+# 数据备份软件 DataBackup
 
-Windows 环境下的数据备份软件，使用 C++17 + CMake + Google Test，采用策略模式和面向对象设计。
+Windows 平台下的桌面级数据备份工具，基于 C++17 + Qt 6 + CMake 构建。
+支持普通备份、还原、定时备份和文件夹级实时备份四种工作模式，全部以图形界面驱动。
 
-## 项目状态
+- 后端：C++17 · 面向对象与策略模式 · Windows 原生 API
+- 前端：Qt 6 Widgets（多标签页）
+- 构建：CMake · MSVC 2022
+- 测试：Google Test
 
-### ✅ 第一阶段：基础架构（已完成）
-- 项目结构、CMake 配置
-- Google Test 集成（Gitee 镜像）
-- FileInfo 实体类（支持硬链接/软链接）
-- 策略接口定义（压缩、加密、过滤器、打包）
+---
 
-### ✅ 第二阶段：文件处理核心（已完成）
-- **FileScanner 文件扫描器**（9 个测试通过）
-  - ✅ 硬链接识别（使用 `GetFileInformationByHandle` API）
-  - ✅ 软链接处理（使用 `FILE_FLAG_OPEN_REPARSE_POINT`）
-  - ✅ 广度优先遍历（避免递归栈溢出）
-  - ✅ 扫描统计信息
+## 功能一览
 
-- **MetadataManager 元数据管理**（12 个测试通过）
-  - ✅ Windows 元数据提取（创建时间、修改时间、文件属性）
-  - ✅ 元数据设置与还原
-  - ✅ 批量处理
-  - ✅ 序列化（JSON 格式）
-  - ✅ 持久化到文件
+| 模式 | 说明 | 输出形态 |
+|------|------|----------|
+| 普通备份 | 一次性把源目录打包成单文件，支持压缩+加密+文件过滤 | `.pkg` 打包文件 |
+| 还原 | 从 `.pkg` 或实时备份目录还原到指定目录 | 目录 |
+| 定时备份 | 按时间表自动执行备份任务 | `.pkg` 打包文件 |
+| 实时备份 | 监听源目录变化，把改动同步到目标目录（文件夹镜像，不打包） | 镜像目录 |
 
-- **Packager 文件打包器**（14 个测试通过）
-  - ✅ 文件打包（多个文件打包为一个连续文件）
-  - ✅ 文件解包（还原文件和目录结构）
-  - ✅ 元数据保存与还原
-  - ✅ 打包格式验证（Magic Number "DPKG"）
-  - ✅ 完整性验证
-  - ✅ 支持大文件（>1GB）
-  - ✅ 支持目录结构（basePath 参数）
-  - ✅ 进度回调支持
+四种模式可**并行使用**：同一个源目录可以同时被普通/定时/实时监控。
 
-- **文件过滤器链**（37 个测试通过）
-  - ✅ **PathFilter** - 路径过滤（包含/排除特定路径前缀）
-  - ✅ **TypeFilter** - 类型过滤（按文件扩展名过滤）
-  - ✅ **NameFilter** - 文件名过滤（支持通配符 `*` 和 `?` 匹配）
-  - ✅ **TimeFilter** - 时间过滤（创建/修改/访问时间范围）
-  - ✅ **SizeFilter** - 大小过滤（文件大小范围，支持 KB/MB/GB）
-  - ✅ **FilterChain** - 过滤器链组合（AND/OR 模式）
+---
 
-### ✅ 第三阶段：压缩与加密（已完成）
-- **压缩模块**（23 个测试通过）
-  - ✅ **ICompressionStrategy** - 压缩策略接口（Strategy Pattern）
-  - ✅ **HuffmanCompression** - Huffman 压缩实现（自实现，无外部依赖）
-    - ✅ 基于字节频率的最优编码
-    - ✅ 空数据处理
-    - ✅ 单字节数据支持（边界情况）
-    - ✅ 大文件压缩（>1MB）
-    - ✅ 重复数据压缩（高压缩率）
-    - ✅ 随机数据压缩
-    - ✅ 二进制数据支持
-    - ✅ 无损压缩，完美还原原始数据
-    - ✅ 文本压缩率：30-50%
-  - ✅ **ZlibCompression** - Zlib 压缩实现（可选，需安装zlib库）
-    - ✅ 支持压缩级别 0-9（无压缩到最高压缩）
-    - ✅ 空数据处理
-    - ✅ 大文件压缩（>1MB）
-    - ✅ 重复数据压缩（高压缩率）
-    - ✅ 随机数据压缩
-    - ✅ 错误数据检测（无效压缩数据拒绝）
-    - ✅ 使用本地编译的 Zlib 静态库（zs.lib）
+## 主要特性
 
-- **加密模块**（12 个测试通过）
-  - ✅ **IEncryptionStrategy** - 加密策略接口（Strategy Pattern）
-  - ✅ **XOREncryption** - XOR 加密实现（自实现，无外部依赖）
-    - ✅ 对称加密，使用密码进行加密/解密
-    - ✅ 空数据处理
-    - ✅ 空密码检测
-    - ✅ 简单文本加密解密
-    - ✅ 二进制数据加密解密
-    - ✅ 大文件加密解密（>1MB）
-    - ✅ 不同密码产生不同密文
-    - ✅ 错误密码检测
-    - ✅ 重复数据加密
-    - ✅ 长密码加密解密
-    - ✅ 中文字符加密解密
+### 备份 · 还原
+- **打包格式** `DPKG v3`：头部（Magic + 版本 + 文件数 + 总大小 + 加密标志 + 压缩编码）+ 索引区 + 数据区
+- **压缩** 三选一：无压缩 / Huffman（自实现） / Zlib（可选依赖）
+- **加密** 可选 XOR，写入前"先压缩后加密"，附带密码验证块（密码错误立即识别，避免解密整包）
+- **文件过滤器链** 五种可组合过滤：路径 / 类型 / 名称（通配符或正则） / 大小 / 时间；AND / OR 两种组合模式
+- **元数据保留**：创建时间、修改时间、访问时间、文件属性、目录结构
+- **备份后自校验**：默认打开
+- **重复备份到同一 `.pkg`** 自动覆盖，含只读位处理
+- **目标位于源目录内** 的场景自动排除，避免自反循环
 
-### ✅ 第四阶段：备份引擎（已完成）
-- **备份引擎**（13 个测试通过）
-  - ✅ **BackupEngine** - 备份引擎核心类
-    - ✅ 完整备份流程（扫描→过滤→压缩→加密→打包→验证）
-    - ✅ 集成所有模块（扫描、过滤、压缩、加密、打包）
-    - ✅ 进度管理和回调
-    - ✅ 取消备份功能
-    - ✅ 错误处理和日志
-  - ✅ **RestoreEngine** - 还原引擎核心类
-    - ✅ 完整还原流程（解包→解密→解压→还原）
-    - ✅ 备份验证
-    - ✅ 备份信息查询
-    - ✅ 进度管理
-  - ✅ **BackupConfig** - 备份配置类
-    - ✅ 路径配置
-    - ✅ 压缩算法选择（none/huffman/zlib）
-    - ✅ 加密算法选择（none/xor）
-    - ✅ 过滤器配置
-    - ✅ 其他选项（保留目录结构、验证、硬链接处理）
-  - ✅ **BackupTypes** - 备份类型定义
-    - ✅ BackupPhase - 备份阶段枚举
-    - ✅ BackupProgress - 实时进度信息
-    - ✅ BackupResult - 备份结果
-    - ✅ RestoreResult - 还原结果
+### 定时备份
+- 任务类型：**一次性 / 每天 / 每周 / 每月 / 间隔**（时/分/秒）
+- 一次性任务执行后自动禁用，周期任务自动计算下次时间
+- 任务级：暂停 / 恢复 / 立即执行 / 删除
+- 调度器：启动 / 停止（停止后不再触发自动执行，但"立即执行"仍可用）
+- 失败重试（`maxRetries` 可配置），运行状态防重入
+- 任务列表每 2 秒刷新一次，实时显示"下次执行时间"
 
-### ✅ 第五阶段：定时调度器（已完成）
-- **定时调度器**（15 个测试通过）
-  - ✅ **BackupScheduler** - 备份调度器核心类
-    - ✅ 完整的任务管理（添加、删除、暂停、恢复）
-    - ✅ 多种定时类型（一次性、每天、每周、每月、间隔）
-    - ✅ 任务执行和监控
-    - ✅ 任务回调机制
-    - ✅ 配置持久化（保存/加载任务）
-  - ✅ **ScheduleTypes** - 定时任务类型定义
-    - ✅ ScheduleType - 任务类型枚举
-    - ✅ TaskStatus - 任务状态枚举
-    - ✅ ScheduleConfig - 任务配置
-    - ✅ TaskInfo - 任务信息
-    - ✅ TaskExecutionResult - 任务执行结果
-  - ✅ 功能特性
-    - ✅ 支持一次性任务（指定时间执行一次）
-    - ✅ 支持周期性任务（每天、每周、每月）
-    - ✅ 支持间隔任务（每隔N小时/分钟）
-    - ✅ 任务执行历史记录
-    - ✅ 失败重试机制
-    - ✅ 多线程调度
-    - ✅ 线程安全设计（分段加锁，避免死锁）
+### 实时备份
+- **触发源**：Windows `ReadDirectoryChangesW` 异步通知
+- **镜像行为**：创建/修改 → 复制到目标；删除/重命名 → 目标同步删除或重命名（可关闭）
+- **启动时全量同步** 可选：先把源目录已有内容复制到目标，再进入监听
+- **子目录监控** 可选
+- **加密写入**（XOR，同名覆盖）
+- **扩展名过滤**：支持 `txt`、`.txt`、`*.txt` 三种写法
+- **UTF-8 路径**：从 Qt 到 Windows API 全链路走宽字符，中文路径正常
+- **自反循环保护**：目标目录不允许等于或位于源目录内部
+- **`.meta` 元数据**：每个备份文件旁附带同名 `.meta`，还原时可复原时间戳/属性
 
-### ✅ 第六阶段：实时备份监控（已完成）
-- **实时备份监控**（14 个测试通过）
-  - ✅ **RealtimeBackupMonitor** - 实时备份监控器核心类
-    - ✅ Windows API监控（ReadDirectoryChangesW）
-    - ✅ 实时文件变化检测（创建、修改、删除、重命名）
-    - ✅ 自动备份触发
-    - ✅ 可选加密备份（XOR加密）
-    - ✅ 文件过滤功能
-    - ✅ 暂停/恢复监控
-    - ✅ 手动备份单个文件
-  - ✅ **RealtimeBackupTypes** - 实时备份类型定义
-    - ✅ RealtimeBackupConfig - 实时备份配置
-    - ✅ FileChangeType - 文件变化类型枚举
-    - ✅ RealtimeBackupStatus - 监控状态枚举
-    - ✅ FileChangeEvent - 文件变化事件
-    - ✅ RealtimeBackupStats - 统计信息
-  - ✅ 功能特性
-    - ✅ 使用Windows原生API监控文件变化
-    - ✅ 实时备份，不打包文件
-    - ✅ 保留目录结构
-    - ✅ 支持中文路径（UTF-8编码）
-    - ✅ 元数据保存（.meta文件）
-    - ✅ 线程安全设计
+### 还原
+- **两种来源**：
+  - 从 `.pkg` 打包文件还原（`RestoreEngine` + `Packager`）
+  - 从实时备份目录还原（遍历目录、按需 XOR 解密、按 `.meta` 恢复元数据）
+- 密码错误提示、进度回调、取消支持
 
-### 测试统计
-- **总计：177 个测试通过**（无zlib）或 **187 个测试通过**（有zlib）
-- test_framework_basic: 8 个测试
-- test_filescanner: 9 个测试
-- test_metadatamanager: 12 个测试
-- test_packager: 14 个测试
-- test_filters: 37 个测试
-- test_huffman_compression: 13 个测试
-- test_xor_encryption: 12 个测试
-- test_backup_engine: 13 个测试
-- test_backup_scheduler: 17 个测试（含死锁测试）
-- test_realtime_backup: 14 个测试  ✅ 新增
-- test_zlib_compression: 10 个测试（可选，需安装zlib）
+---
 
-## 构建与测试
+## 界面
 
-### 环境要求
-- Windows 10/11
-- Visual Studio 2022（MSVC 编译器）
-- CMake 3.15+
-- Git
-- （可选）Zlib 库 - 用于ZlibCompression压缩
+四个标签页，进入即用：
 
-### 构建步骤
+- **备份**：源目录 + 目标 `.pkg` + 压缩 + 加密 + 过滤器 + 进度条
+- **还原**：来源类型（打包文件 / 实时备份目录）+ 目标目录 + 密码
+- **定时任务**：任务表 + 类型（一次性/每天/每周/每月/间隔）+ 时间参数 + 压缩加密过滤 + 启停调度器
+- **实时备份**：监控目录 + 目标目录 + 加密 + 扩展名过滤 + 三个行为开关（子目录 / 启动全量同步 / 同步删除）+ 统计面板
 
-#### 方式1：基本构建（仅Huffman压缩，无需外部依赖）
+---
+
+## 快速开始
+
+### 环境
+- Windows 10 / 11
+- Visual Studio 2022（MSVC）
+- CMake 3.16+
+- Qt 6（默认路径 `D:/Qt/6.11.1/msvc2022_64`，可在 `build_gui.bat` 中修改）
+- Zlib（可选）
+
+### 构建 GUI
 
 ```powershell
-# 克隆仓库
-git clone <repository-url>
-cd DataBackupSoftware
+.\build_gui.bat
+.\run_gui.bat
+```
 
-# 构建项目（仅Huffman压缩）
+产物：`build\src\ui\Release\DataBackupGUI.exe`
+
+### 构建并运行所有测试
+
+```powershell
 .\build_project.bat
-
-# 运行所有测试（102个测试）
 .\run_all_tests.bat
 ```
 
-#### 方式2：完整构建（Huffman + Zlib压缩）
+### 清理
 
 ```powershell
-# 1. 安装zlib（手动下载或使用vcpkg）
-# 详见：docs/zlib_installation.md
-
-# 2. 配置zlib路径（在CMakeLists.txt中修改）
-set(ZLIB_ROOT "D:/path/to/zlib" CACHE PATH "Zlib root directory")
-set(ZLIB_INCLUDE_DIR "${ZLIB_ROOT}" CACHE PATH "Zlib include directory")
-set(ZLIB_LIBRARY "${ZLIB_ROOT}/build/Release/zs.lib" CACHE FILEPATH "Zlib static library")
-
-# 3. 构建项目
-.\build_project.bat
-
-# 4. 运行所有测试（112个测试）
-.\run_all_tests.bat
+.\clean_project.bat
 ```
 
-### 单独运行测试
-
-```powershell
-# 基础框架测试
-.\build\tests\Debug\test_framework_basic.exe
-
-# 文件扫描测试
-.\build\tests\Debug\test_filescanner.exe
-
-# 元数据管理测试
-.\build\tests\Debug\test_metadatamanager.exe
-
-# 文件打包测试
-.\build\tests\Debug\test_packager.exe
-
-# 文件过滤器测试
-.\build\tests\Debug\test_filters.exe
-
-# Huffman压缩测试（总是可用）
-.\build\tests\Debug\test_huffman_compression.exe
-
-# XOR加密测试（总是可用）
-.\build\tests\Debug\test_xor_encryption.exe
-
-# 备份引擎测试（总是可用）
-.\build\tests\Debug\test_backup_engine.exe
-
-# 备份调度器测试（总是可用）
-.\build\tests\Debug\test_backup_scheduler.exe
-
-# Zlib压缩测试（需要安装zlib）
-.\build\tests\Debug\test_zlib_compression.exe
-```
-
-### 集成测试（可选）
-
-```powershell
-# 完整备份还原流程测试
-.\build\tests\Debug\test_integration.exe
-
-# 真实目录测试（交互式）
-.\build\tests\Debug\test_real_directory.exe
-```
+---
 
 ## 项目结构
 
 ```
-DataBackupSoftware/
+软件开发实验/
 ├── src/
-│   ├── core/           # FileScanner, MetadataManager, FileInfo
-│   ├── compression/    # 压缩策略接口和实现
-│   │   ├── ICompressionStrategy.h      # 压缩策略接口
-│   │   ├── HuffmanCompression.h/cpp    # Huffman压缩（✅ 已实现）
-│   │   └── ZlibCompression.h/cpp       # Zlib压缩（✅ 已实现，可选）
-│   ├── encryption/     # 加密策略接口和实现
-│   │   ├── IEncryptionStrategy.h       # 加密策略接口
-│   │   └── XOREncryption.h/cpp         # XOR加密（✅ 已实现）
-│   ├── filter/         # 文件过滤器链（PathFilter, TypeFilter, NameFilter, TimeFilter, SizeFilter）
-│   ├── pack/           # Packager 文件打包器
-│   ├── engine/         # 备份引擎和还原引擎
-│   │   ├── BackupEngine.h/cpp          # 备份引擎（✅ 已实现）
-│   │   ├── RestoreEngine.h/cpp         # 还原引擎（✅ 已实现）
-│   │   ├── BackupConfig.h              # 备份配置（✅ 已实现）
-│   │   └── BackupTypes.h               # 备份类型定义（✅ 已实现）
-│   ├── scheduler/      # 定时调度器
-│   │   ├── BackupScheduler.h/cpp       # 备份调度器（✅ 已实现）
-│   │   ├── ScheduleTypes.h             # 定时任务类型定义（✅ 已实现）
-│   │   └── IScheduler.h                # 调度器接口（✅ 已实现）
-│   └── ui/             # Qt 界面（待实现）
-├── tests/              # Google Test 测试
-├── thirdparty/         # 第三方库（Zlib 等，可选）
-├── build/              # 构建输出目录
-├── docs/               # 设计文档
-├── CMakeLists.txt      # CMake 配置
-└── README.md           # 项目说明
+│   ├── core/            FileScanner · MetadataManager · FileInfo
+│   ├── compression/     ICompressionStrategy · Huffman · Zlib
+│   ├── encryption/      IEncryptionStrategy · XOREncryption
+│   ├── filter/          FilterChain · Path/Type/Name/Time/Size Filter
+│   ├── pack/            Packager（DPKG v3 打包/解包）
+│   ├── engine/          BackupEngine · RestoreEngine · BackupConfig
+│   ├── scheduler/       BackupScheduler · IScheduler · ScheduleTypes
+│   ├── realtime/        RealtimeBackupMonitor · IRealtimeBackupMonitor
+│   └── ui/              MainWindow + 四个 Tab + 各自 Worker + FilterDialog
+├── tests/               13 个 Google Test 测试文件
+├── thirdparty/          Zlib 静态库（可选）
+├── build_gui.bat        构建 GUI
+├── run_gui.bat          运行 GUI
+├── build_project.bat    构建全部（含测试）
+├── run_all_tests.bat    跑全部测试
+├── clean_project.bat    清理 build/
+└── CMakeLists.txt
 ```
 
-## 下一步开发计划
+---
 
-### 第六阶段：图形界面
-- 🔲 Qt GUI 开发
-- 🔲 可视化备份进度
-- 🔲 备份文件浏览器
-- 🔲 定时任务管理界面
+## 模块与测试
 
-### 第七阶段：高级功能（可选）
-- 🔲 实时文件监控
-- 🔲 增量备份支持
-- 🔲 备份计划管理
-- 🔲 网络备份支持
+| 模块 | 测试文件 | 说明 |
+|------|----------|------|
+| 基础框架 | `test_framework_basic.cpp` | GTest + 项目基础 |
+| 文件扫描 | `test_filescanner.cpp` | 硬链接/软链接/BFS |
+| 元数据 | `test_metadatamanager.cpp` | Windows API 时间/属性 |
+| 打包器 | `test_packager.cpp` | DPKG 打包/解包/完整性 |
+| 过滤器 | `test_filters.cpp` | 5 种过滤器 + FilterChain |
+| Huffman | `test_huffman_compression.cpp` | 无外部依赖压缩 |
+| Zlib | `test_zlib_compression.cpp` | 可选，依赖 zlib |
+| XOR 加密 | `test_xor_encryption.cpp` | 对称加密 |
+| 备份引擎 | `test_backup_engine.cpp` | 端到端备份流程 |
+| 调度器 | `test_backup_scheduler.cpp` | 定时任务 + 死锁场景 |
+| 实时备份 | `test_realtime_backup.cpp` | 监控 + 同步 |
+| 集成 | `test_integration.cpp` | 备份→还原完整链路 |
+| 真实目录 | `test_real_directory.cpp` | 交互式，选真实目录 |
 
-## 算法对比
+单独运行示例：
 
-### 压缩算法
+```powershell
+.\build\tests\Release\test_backup_engine.exe
+.\build\tests\Release\test_realtime_backup.exe
+```
 
-| 算法 | 状态 | 压缩率 | 速度 | 依赖 |
-|------|------|--------|------|------|
-| Huffman | ✅ 已实现 | 30-50%（文本） | 快 | 无 |
-| Zlib | ✅ 已实现 | 40-70% | 很快 | zlib库（可选） |
+---
 
-### 加密算法
+## 关键设计决策
 
-| 加密算法 | 状态 | 安全性 | 速度 | 依赖 |
-|---------|------|--------|------|------|
-| XOR | ✅ 已实现 | 低 | 很快 | 无 |
-| AES | 🔲 待实现 | 高 | 中等 | Crypto++（可选） |
+- **策略模式**：压缩、加密、过滤器全部通过接口注入 `BackupConfig`，运行时任意组合。
+- **线程模型**：
+  - 备份/还原：`QThread` 子类（`BackupWorker` / `RestoreWorker`），信号槽回主线程更新 UI。
+  - 定时器：独立 `std::thread` 循环（`BackupScheduler`），Qt 侧用 `Qt::QueuedConnection` 转发结果。
+  - 实时监控：独立 `std::thread` + `ReadDirectoryChangesW` 异步 IO + 停止事件。
+- **加锁策略**：调度器 / 监控器都采用"抓取任务信息后立即释放锁，长耗时操作在锁外执行"的模式，避免阻塞。
+- **路径编码**：Qt 侧统一 UTF-8，Windows API / `std::filesystem` 边界处显式转 `wchar_t`，中文路径全链路可用。
+- **DPKG 格式向前兼容**：V1（无加密无压缩）→ V2（加密）→ V3（加密+压缩），解包时按版本号选择头部大小。
 
-## 技术特点
+---
 
-- ✅ **测试驱动开发（TDD）**：每个模块都有完整的单元测试
-- ✅ **策略模式**：压缩、加密、过滤器采用策略模式解耦
-- ✅ **Windows API**：使用 Windows-specific APIs 处理元数据和链接文件
-- ✅ **异常处理**：完善的异常处理机制
-- ✅ **内存安全**：使用智能指针管理对象生命周期
-- ✅ **模块化设计**：各模块独立，易于维护和扩展
+## 常见问题
 
-## 开发团队
+**Q：可以同时对同一目录做实时+定时备份吗？**
+可以。实时备份把源目录持续镜像到目标目录 A，定时备份把源目录打包成 `.pkg` 存到位置 B，两者互不影响。
 
-软件开发实验课程项目
+**Q：实时备份得到的加密文件怎么打开？**
+在"还原"页选"从实时备份目录还原（文件夹）"，选目标目录、输入原密码即可解密还原到新目录。
+
+**Q：一次性任务执行完还会再触发吗？**
+不会。执行后被自动禁用，`nextExecutionTime` 置 0。
+
+**Q：停止调度器后已有任务丢了吗？**
+任务保留，只是不再按时触发。手动"立即执行"仍然可用。
+
+**Q：Zlib 可以不装吗？**
+可以。默认走 Huffman。装了 Zlib 后压缩下拉框会自动出现该选项。
+
+---
 
 ## 许可证
 
